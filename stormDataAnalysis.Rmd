@@ -1,0 +1,205 @@
+---
+title: Analysis and Visualization using NOAA Storm Database to highlight the Severe
+  Weather Events on Public Health and Economy in the United States
+author: 'By Jean Marie Cimula (Email: jmkacim@cimula.com & Cell: 123-456-789)'
+date: 'JHU, DS Specialization, Reproducible Research : Assignment 2, Presented on
+  3 March 2016'
+output: pdf_document
+---
+
+
+###Introduction
+
+
+Nowadays, the National Weather Service (NWS) is an agency of the United States government that is tasked with providing weather forecasts, warnings of hazardous weather, and other weather-related products to organizations and the public for the purposes of protection, safety, and general information. It is a part of the National Oceanic and Atmospheric Administration (NOAA) branch of the Department of Commerce, and is headquartered in Silver Spring, Maryland (located just outside Washington, D.C.).[https://en.wikipedia.org/wiki/National_Weather_Service].
+
+
+The database currently contains data from January 1950 to November 2015, as entered by NOAA's National Weather Service (NWS). Due to changes in the data collection and processing procedures over time, there are unique periods of record available depending on the event type. The following timelines show the different time spans for each period of unique data collection and processing procedures. Select below for detailed decriptions of each data collection type. [http://www.ncdc.noaa.gov/stormevents/details.jsp]
+
+###Synopsis
+
+This report consists to analyze and visualize the severe weather Events on Public Health and Economy in the US using the NOAA Storm Database from 1950 to 2011. In this paper we will higlight many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern. From these data, we investigate which type of events are the most harmful to the population and financially.
+
+###Data Processing
+####Library loading
+```{r results='hide', message=FALSE, warning=FALSE}
+library(R.utils) #for bunzip2
+library(ggplot2) #for plots
+library(plyr)      #for count & aggregate method
+library(reshape2) #Flexibly restructure and aggregate data using MELT and MERGE
+```
+
+####Data Load
+Read the source .csv file
+```{r}
+#Unzip and read .csv file into the variable data
+dataLoad <- read.csv(bzfile("repdata-data-StormData.csv.bz2"), strip.white = TRUE)
+```
+
+Select useful data 
+
+Subsetting data into variables that are needed and adding a new variable.
+
+```{r}
+#Remove unwanted colums (not used for this analysis)
+gCol <- c("BGN_DATE", "EVTYPE", "FATALITIES", "INJURIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP")
+gData <- dataLoad[, gCol]
+
+#Head of two rows with good columns
+head(gData,n=2)
+
+#Types of data
+str(gData)
+
+#Formatting date and time
+gData$YEAR <- as.integer(format(as.Date(gData$BGN_DATE, "%m/%d/%Y 0:00:00"), "%Y"))
+
+# creates new variable
+gData$ECONOMICDMG <- gData$PROPDMG + gData$CROPDMG
+
+```
+
+
+####Data integrity
+
+Find NA Values
+
+No missing values so moving on to examine data integrity. 
+
+```{r}
+#Verifying missing values in the dataset
+dataIntegrity <- function(dataframe) {
+        for (colName in colnames(dataframe)) {
+                NAcount <- 0
+                NAcount < as.numeric(sum(is.na(dataframe[,colName])))
+                if(NAcount > 0) {
+                        message(colName, ":", NAcount, "missing values")
+                        } else {
+                        message(colName, ":", "No missing values")
+                        }
+                }
+}
+dataIntegrity(gData)
+```
+####Data aggregation
+
+Sum of good columns which will use to analyze our report group by YEAR and EVTYPE
+
+```{r}
+eY <- ddply(
+               gData[, -1], .(YEAR, EVTYPE),.fun = function(x) 
+              {
+                 return(c(sum(x$FATALITIES), sum(x$ECONOMICDMG), sum(x$INJURIES)))
+              }
+           )
+names(eY) <- c("YEAR", "EVTYPE", "FATALITIES", "ECONOMICDMG", "INJURIES")
+head(eY)
+```
+
+There are 902297 rows and 37 columns in total. The events in the database start in the year 1950 and end in November 2011. In the earlier years of the database there are generally fewer events recorded, most likely due to a lack of reliable/complete records.
+
+```{r}
+hist(gData$YEAR, main = "Histogram of Evolution Data From 1950 to 2011", xlab="Year", breaks = 40)
+```
+
+The histogram above shows that the number of events tracked begins to increase in the middle of 1990s. 
+
+
+####Impact on Public Health
+
+For this point we are going to check the number of fatalities and injuries which are caused by the severe weather events. Let get first 20 most severe types of weather events.
+
+####Impact on Economy
+
+As indicated in the EVTYPE variable, we check and determine which types of events are most harmful with respect to the economy by aggregating the total damage in US Dollars by event type for property damage, crop damage and total damage. The top 20 events with the highest amount of total damage were subsetted and plotted. 
+
+```{r}
+gData$PROPDMGEXP <- as.character(gData$PROPDMGEXP)
+gData$PROPDMGEXP[toupper(gData$PROPDMGEXP) == 'H'] <- "2"
+gData$PROPDMGEXP[toupper(gData$PROPDMGEXP) == 'K'] <- "3"
+gData$PROPDMGEXP[toupper(gData$PROPDMGEXP) == 'M'] <- "6"
+gData$PROPDMGEXP[toupper(gData$PROPDMGEXP) == 'B'] <- "9"
+gData$PROPDMGEXP <- as.numeric(gData$PROPDMGEXP)
+gData$PROPDMGEXP[is.na(gData$PROPDMGEXP)] <- 0
+gData$TOTALPROPDMG <- gData$PROPDMG * 10^gData$PROPDMGEXP
+gData$CROPDMGEXP <- as.character(gData$CROPDMGEXP)
+gData$CROPDMGEXP[toupper(gData$CROPDMGEXP) == 'H'] <- "2"
+gData$CROPDMGEXP[toupper(gData$CROPDMGEXP) == 'K'] <- "3"
+gData$CROPDMGEXP[toupper(gData$CROPDMGEXP) == 'M'] <- "6"
+gData$CROPDMGEXP[toupper(gData$CROPDMGEXP) == 'B'] <- "9"
+gData$CROPDMGEXP <- as.numeric(gData$CROPDMGEXP)
+gData$CROPDMGEXP[is.na(gData$CROPDMGEXP)] <- 0
+gData$TOTALCROPDMG <- gData$CROPDMG * 10^gData$CROPDMGEXP
+
+#Damage properties
+gSumProp <- aggregate(gData$TOTALPROPDMG, by = list(gData$EVTYPE), "sum")
+names(gSumProp) <- c("Event", "Cost")
+gSumProp <- gSumProp[order(-gSumProp$Cost), ][1:20, ]
+
+#Damage crop
+gSumCrop <- aggregate(gData$TOTALCROPDMG, by = list(gData$EVTYPE), "sum")
+names(gSumCrop) <- c("Event", "Cost")
+gSumCrop <- gSumCrop[order(-gSumCrop$Cost), ][1:20, ]
+
+#Fatalities
+aggFat <- aggregate(gData$FATALITIES, by = list(gData$EVTYPE), "sum")
+names(aggFat) <- c("Event", "Fatalities")
+aggFat <- aggFat[order(-aggFat$Fatalities), ][1:20,]
+aggFat
+
+#Injuries
+aggInjury <- aggregate(gData$INJURIES, by = list(gData$EVTYPE), "sum")
+names(aggInjury) <- c("Event", "Injuries")
+aggInjury <- aggInjury[order(-aggInjury$Injuries), ][1:20,]
+
+```
+
+
+####Result
+As for the impact on public health, we have got two sorted lists of severe weather events below by the number of people badly affected.
+
+Damage roperties
+```{r}
+gSumProp
+```
+
+Damage Crop
+```{r}
+gSumCrop
+```
+
+Fatalities
+```{r}
+aggFat
+```
+
+Injuries
+```{r}
+aggInjury
+```
+
+
+Find the below the following results: (1) Plot on the fatalities and injuries for the top 20 weather Events
+```{r}
+#Plot on the fatalities
+barplot(aggFat$Fatalities, names.arg = aggFat$Event, col = 'red',main = 'Selecection of Top 20 Weather Events for Fatalities', ylab = 'Nb. of Fatalities')
+
+#Plot on the injuries
+barplot(aggInjury$Injuries, names.arg = aggInjury$Event, col = 'blue',main = 'Selecection of Top 20 Weather Events for Injuries', ylab = 'Nb. of Injuries')
+```
+
+```{r}
+#Merging Sum of properties and crop
+fatDamage <- merge(x = gSumProp, y = gSumCrop, by = "Event", all = TRUE)
+
+#Merge and melt
+fatDamage <- melt(fatDamage, id.vars = 'Event')
+
+#Plot with data merged and melted
+ggplot(fatDamage, aes(Event, value)) + geom_bar(aes(fill = variable), position = "dodge", stat="identity") +
+theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Event Type") + 
+ylab("Damage (Crop and Properties), USD (Current)") + ggtitle("Crop and Property damage splitted")
+```
+
+####Conclusion
+Using NOAA Storm Database in our report we find that excessive heat and tornado are most harmful with respect to population health, while flood, drought, and hurricane/typhoon have the greatest economic consequences in the Unites States.
